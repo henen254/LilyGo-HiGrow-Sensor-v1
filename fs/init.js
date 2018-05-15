@@ -30,7 +30,7 @@ GPIO.set_int_handler(resetPin, GPIO.INT_EDGE_NEG, function(resetPin) {
     Sys.usleep(200000);
   }
   GPIO.write(statusLightPin, 1);
-  
+
   // enable bluetooth
   Cfg.set({bt:{enable:true}});
   // disable and clear wifi-config
@@ -55,20 +55,20 @@ if (deviceId === "")
 }
 
 let connected = false;
-let readSensors = Timer.set(5000, Timer.REPEAT, function() {
+let readSensors = Timer.set(30000, Timer.REPEAT, function() {
   let t = dht.getTemp();
   let h = dht.getHumidity();
   let m = ADC.read(moisturePin);
 
   print("DeviceId:",deviceId,"Temperature:",t,"Humidity:",h,"Moisture:",m);
-  
+
   if (deviceId !== "" && connected)
   {
     GPIO.write(statusLightPin, 0);
     let jsonData = {'DeviceId': deviceId, 'Temperature': t, 'Humidity': h, 'Moisture': m};
     HTTP.query({
       headers: {'Content-Type' : 'application/json'},
-      url: 'http://httpbin.org/post',  // replace with your own endpoint
+      url: 'http://kiefershohe.nimling.com/sensordata/saveSensorData.php?temp='+JSON.stringify(t)+'&moist='+JSON.stringify(m)+'&dev='+JSON.stringify(deviceId)+'&hum='+JSON.stringify(h),  // replace with your own endpoint
       data: jsonData,
       success: function(body, full_http_msg) 
       { 
@@ -82,7 +82,22 @@ let readSensors = Timer.set(5000, Timer.REPEAT, function() {
         //ESP32.deepSleep(30000000); // 30 seconds
       },
     });
-
+    HTTP.query({
+      headers: {'Content-Type' : 'application/json'},
+      url: 'http://kiefershohe.nimling.com/sensordata/toinflux.php?temp='+JSON.stringify(t)+'&moist='+JSON.stringify(m)+'&dev='+JSON.stringify(deviceId)+'&hum='+JSON.stringify(h),  // replace with your own endpoint
+      data: jsonData,
+      success: function(body, full_http_msg) 
+      { 
+        //print(body); 
+        // sleep for 15 seconds, then (re)boot up and do it all over again
+        //ESP32.deepSleep(15000000); // 15 seconds 
+      },
+      error: function(err) 
+      { 
+        print(err); 
+        //ESP32.deepSleep(30000000); // 30 seconds
+      },
+    });
     GPIO.write(statusLightPin, 1);
     //Timer.del(readSensors);
   }
@@ -114,7 +129,7 @@ RPC.addHandler('HG.StatusLED.On', function(args){
   {
     return false;
   }
-  
+
   return true;
 });
 RPC.addHandler('HG.StatusLED.Off', function(args){
@@ -123,7 +138,7 @@ RPC.addHandler('HG.StatusLED.Off', function(args){
   {
     return false;
   }
-  
+
   return true;
 });
 
@@ -145,6 +160,6 @@ Event.addGroupHandler(Net.EVENT_GRP, function(ev, evdata, arg) {
     evs = 'GOT_IP';
     connected = true;
   }
-  
+
   print(evs);
 }, null);
